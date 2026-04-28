@@ -144,7 +144,67 @@ def edit_customer(original_customer_id: str = None, new_customer: Customer = Non
     original_customer_id - A string containing the customer id for the customer to be edited.
     new_customer - A Customer object containing attributes to update. If an attribute is None, it should not be altered.
     """
-    raise NotImplementedError("you must implement this function")
+    # Get current customer and address info
+    cur.execute("SELECT c_current_addr_sk, c_first_name, c_last_name, c_email_address FROM customer WHERE c_customer_id = ?", (original_customer_id,))
+    row = cur.fetchone()
+    if not row:
+        return
+    
+    addr_sk, first_name, last_name, email = row
+
+    # Only split name if provided
+    if new_customer.name:
+        name_parts = new_customer.name.split(" ", 1)
+        first_name = name_parts[0]
+        last_name = name_parts[1] if len(name_parts) > 1 else ""
+    
+    if new_customer.email:
+        email = new_customer.email
+
+    # Update customer table
+    cur.execute(
+        """
+        UPDATE customer 
+        SET c_customer_id = COALESCE(?, c_customer_id),
+            c_first_name = ?,
+            c_last_name = ?,
+            c_email_address = ?
+        WHERE c_customer_id = ?
+        """,
+        (new_customer.customer_id, first_name, last_name, email, original_customer_id)
+    )
+
+    # Update address table if address provided
+    if new_customer.address:
+        try:
+            address_parts = new_customer.address.split(",")
+            street_part = address_parts[0].strip()
+            city = address_parts[1].strip()
+            state_zip = address_parts[2].strip()
+
+            street_split = street_part.split(" ", 1)
+            street_number = street_split[0]
+            street_name = street_split[1] if len(street_split) > 1 else ""
+
+            state_zip_split = state_zip.split()
+            state = state_zip_split[0]
+            zip_code = state_zip_split[1] if len(state_zip_split) > 1 else ""
+
+            cur.execute(
+                """
+                UPDATE customer_address
+                SET ca_street_number = ?,
+                    ca_street_name = ?,
+                    ca_city = ?,
+                    ca_state = ?,
+                    ca_zip = ?
+                WHERE ca_address_sk = ?
+                """,
+                (street_number, street_name, city, state, zip_code, addr_sk)
+            )
+        except (IndexError, ValueError):
+            # If address format is invalid, we skip updating it
+            pass
 
 
 def rent_item(item_id: str = None, customer_id: str = None):
@@ -152,7 +212,10 @@ def rent_item(item_id: str = None, customer_id: str = None):
     item_id - A string containing the Item ID for the item being rented.
     customer_id - A string containing the customer id of the customer renting the item.
     """
-    raise NotImplementedError("you must implement this function")
+    rental_date = date.today()
+    due_date = rental_date + timedelta(days=14)
+    cur.execute("INSERT INTO rental (item_id, customer_id, rental_date, due_date) VALUES (?, ?, ?, ?)",
+                (item_id, customer_id, rental_date, due_date))
 
 
 def waitlist_customer(item_id: str = None, customer_id: str = None) -> int:
@@ -176,14 +239,23 @@ def return_item(item_id: str = None, customer_id: str = None):
     """
     Moves a rental from rental to rental_history with return_date = today.
     """
-    raise NotImplementedError("you must implement this function")
+    cur.execute("SELECT rental_date, due_date FROM rental WHERE item_id = ? AND customer_id = ?",
+                (item_id, customer_id))
+    row = cur.fetchone()
+    if row:
+        rental_date, due_date = row
+        return_date = date.today()
+        cur.execute("DELETE FROM rental WHERE item_id = ? AND customer_id = ?", (item_id, customer_id))
+        cur.execute("INSERT INTO rental_history (item_id, customer_id, rental_date, due_date, return_date) VALUES (?, ?, ?, ?, ?)",
+                    (item_id, customer_id, rental_date, due_date, return_date))
 
 
 def grant_extension(item_id: str = None, customer_id: str = None):
     """
     Adds 14 days to the due_date.
     """
-    raise NotImplementedError("you must implement this function")
+    cur.execute("UPDATE rental SET due_date = DATE_ADD(due_date, INTERVAL 14 DAY) WHERE item_id = ? AND customer_id = ?",
+                (item_id, customer_id))
 
 
 def get_filtered_items(filter_attributes: Item = None,
@@ -327,7 +399,49 @@ def get_filtered_rentals(filter_attributes: Rental = None,
     """
     Returns a list of Rental objects matching the filters.
     """
-    raise NotImplementedError("you must implement this function")
+    query = "SELECT * FROM rental WHERE 1=1"
+    params = []
+
+    if filter_attributes:
+        if filter_attributes.item_id:
+            query += " AND item_id = ?"
+            params.append(filter_attributes.item_id)
+        if filter_attributes.customer_id:
+            query += " AND customer_id = ?"
+            params.append(filter_attributes.customer_id)
+        if filter_attributes.rental_date:
+            query += " AND rental_date = ?"
+            params.append(filter_attributes.rental_date)
+        if filter_attributes.due_date:
+            query += " AND due_date = ?"
+            params.append(filter_attributes.due_date)
+
+    if min_rental_date:
+        query += " AND rental_date >= ?"
+        params.append(min_rental_date)
+    if max_rental_date:
+        query += " AND rental_date <= ?"
+        params.append(max_rental_date)
+    if min_due_date:
+        query += " AND due_date >= ?"
+        params.append(min_due_date)
+    if max_due_date:
+        query += " AND due_date <= ?"
+        params.append(max_due_date)
+
+    cur.execute(query, params)
+    rows = cur.fetchall()
+
+    results = []
+    for row in rows:
+        results.append(Rental(
+            item_id=row[0].strip() if row[0] else None,
+            customer_id=row[1].strip() if row[1] else None,
+            rental_date=str(row[2]) if row[2] else None,
+            due_date=str(row[3]) if row[3] else None
+        ))
+
+    return results
 
 
 def get_filtered_rental_histories(filter_attributes: RentalHistory = None,
@@ -340,7 +454,59 @@ def get_filtered_rental_histories(filter_attributes: RentalHistory = None,
     """
     Returns a list of RentalHistory objects matching the filters.
     """
-    raise NotImplementedError("you must implement this function")
+    query = "SELECT * FROM rental_history WHERE 1=1"
+    params = []
+
+    if filter_attributes:
+        if filter_attributes.item_id:
+            query += " AND item_id = ?"
+            params.append(filter_attributes.item_id)
+        if filter_attributes.customer_id:
+            query += " AND customer_id = ?"
+            params.append(filter_attributes.customer_id)
+        if filter_attributes.rental_date:
+            query += " AND rental_date = ?"
+            params.append(filter_attributes.rental_date)
+        if filter_attributes.due_date:
+            query += " AND due_date = ?"
+            params.append(filter_attributes.due_date)
+        if filter_attributes.return_date:
+            query += " AND return_date = ?"
+            params.append(filter_attributes.return_date)
+
+    if min_rental_date:
+        query += " AND rental_date >= ?"
+        params.append(min_rental_date)
+    if max_rental_date:
+        query += " AND rental_date <= ?"
+        params.append(max_rental_date)
+    if min_due_date:
+        query += " AND due_date >= ?"
+        params.append(min_due_date)
+    if max_due_date:
+        query += " AND due_date <= ?"
+        params.append(max_due_date)
+    if min_return_date:
+        query += " AND return_date >= ?"
+        params.append(min_return_date)
+    if max_return_date:
+        query += " AND return_date <= ?"
+        params.append(max_return_date)
+
+    cur.execute(query, params)
+    rows = cur.fetchall()
+
+    results = []
+    for row in rows:
+        results.append(RentalHistory(
+            item_id=row[0].strip() if row[0] else None,
+            customer_id=row[1].strip() if row[1] else None,
+            rental_date=str(row[2]) if row[2] else None,
+            due_date=str(row[3]) if row[3] else None,
+            return_date=str(row[4]) if row[4] else None
+        ))
+
+    return results
 
 
 def get_filtered_waitlist(filter_attributes: Waitlist = None,
@@ -349,7 +515,39 @@ def get_filtered_waitlist(filter_attributes: Waitlist = None,
     """
     Returns a list of Waitlist objects matching the filters.
     """
-    raise NotImplementedError("you must implement this function")
+    query = "SELECT * FROM waitlist WHERE 1=1"
+    params = []
+
+    if filter_attributes:
+        if filter_attributes.item_id:
+            query += " AND item_id = ?"
+            params.append(filter_attributes.item_id)
+        if filter_attributes.customer_id:
+            query += " AND customer_id = ?"
+            params.append(filter_attributes.customer_id)
+        if filter_attributes.place_in_line != -1:
+            query += " AND place_in_line = ?"
+            params.append(filter_attributes.place_in_line)
+
+    if min_place_in_line != -1:
+        query += " AND place_in_line >= ?"
+        params.append(min_place_in_line)
+    if max_place_in_line != -1:
+        query += " AND place_in_line <= ?"
+        params.append(max_place_in_line)
+
+    cur.execute(query, params)
+    rows = cur.fetchall()
+
+    results = []
+    for row in rows:
+        results.append(Waitlist(
+            item_id=row[0].strip() if row[0] else None,
+            customer_id=row[1].strip() if row[1] else None,
+            place_in_line=row[2] if row[2] is not None else -1
+        ))
+
+    return results
 
 
 def number_in_stock(item_id: str = None) -> int:
