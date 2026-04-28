@@ -63,6 +63,7 @@ def add_customer(new_customer: Customer = None):
         new_customer and its attributes will never be None.
     """
     # split full name into first and last name
+
     name_parts = new_customer.name.split(" ", 1)
     first_name = name_parts[0]
     last_name = name_parts[1] if len(name_parts) > 1 else ""
@@ -194,14 +195,76 @@ def get_filtered_items(filter_attributes: Item = None,
     """
     Returns a list of Item objects matching the filters.
     """
-    raise NotImplementedError("you must implement this function")
+    query = "SELECT * FROM item WHERE 1=1"
+    params = []
+
+    # Only filter by item_id for now
+    if filter_attributes and filter_attributes.item_id:
+        query += " AND i_item_id = ?"
+        params.append(filter_attributes.item_id)
+
+    cur.execute(query, params)
+    rows = cur.fetchall()
+
+    results = []
+    for row in rows:
+        item = Item(
+            item_id=row[1].strip(),
+            product_name=row[3].strip(),
+            brand=row[4].strip(),
+            category=row[6].strip(),
+            manufact=row[7].strip(),
+            current_price=float(row[8]),
+            start_year=row[2].year,
+            num_owned=row[9]
+        )
+        results.append(item)
+
+    return results
 
 
 def get_filtered_customers(filter_attributes: Customer = None, use_patterns: bool = False) -> list[Customer]:
     """
     Returns a list of Customer objects matching the filters.
     """
-    raise NotImplementedError("you must implement this function")
+    query = """
+    SELECT
+        c.c_customer_id,
+        c.c_first_name,
+        c.c_last_name,
+        c.c_email_address,
+        ca.ca_street_number,
+        ca.ca_street_name,
+        ca.ca_city,
+        ca.ca_state,
+        ca.ca_zip
+    FROM customer c
+    JOIN customer_address ca
+        ON c.c_current_addr_sk = ca.ca_address_sk
+    WHERE 1=1
+    """
+    params = []
+
+    if filter_attributes and filter_attributes.customer_id:
+        query += " AND c.c_customer_id = ?"
+        params.append(filter_attributes.customer_id)
+
+    cur.execute(query, params)
+    rows = cur.fetchall()
+
+    results = []
+    for row in rows:
+        name = f"{row[1].strip()} {row[2].strip()}".strip()
+        address = f"{row[4].strip()} {row[5].strip()}, {row[6].strip()}, {row[7].strip()} {row[8].strip()}"
+
+        results.append(Customer(
+            customer_id=row[0].strip(),
+            name=name,
+            address=address,
+            email=row[3].strip()
+        ))
+
+    return results
 
 
 def get_filtered_rentals(filter_attributes: Rental = None,
