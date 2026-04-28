@@ -197,11 +197,43 @@ def get_filtered_items(filter_attributes: Item = None,
     """
     query = "SELECT * FROM item WHERE 1=1"
     params = []
+    op = "LIKE" if use_patterns else "="
 
-    # Only filter by item_id for now
-    if filter_attributes and filter_attributes.item_id:
-        query += " AND i_item_id = ?"
-        params.append(filter_attributes.item_id)
+    if filter_attributes:
+        if filter_attributes.item_id:
+            query += f" AND i_item_id {op} ?"
+            params.append(filter_attributes.item_id)
+        if filter_attributes.product_name:
+            query += f" AND i_product_name {op} ?"
+            params.append(filter_attributes.product_name)
+        if filter_attributes.brand:
+            query += f" AND i_brand {op} ?"
+            params.append(filter_attributes.brand)
+        if filter_attributes.category:
+            query += f" AND i_category {op} ?"
+            params.append(filter_attributes.category)
+        if filter_attributes.manufact:
+            query += f" AND i_manufact {op} ?"
+            params.append(filter_attributes.manufact)
+        if filter_attributes.current_price != -1:
+            query += " AND i_current_price = ?"
+            params.append(filter_attributes.current_price)
+        if filter_attributes.num_owned != -1:
+            query += " AND i_num_owned = ?"
+            params.append(filter_attributes.num_owned)
+
+    if min_price != -1:
+        query += " AND i_current_price >= ?"
+        params.append(min_price)
+    if max_price != -1:
+        query += " AND i_current_price <= ?"
+        params.append(max_price)
+    if min_start_year != -1:
+        query += " AND YEAR(i_rec_start_date) >= ?"
+        params.append(min_start_year)
+    if max_start_year != -1:
+        query += " AND YEAR(i_rec_start_date) <= ?"
+        params.append(max_start_year)
 
     cur.execute(query, params)
     rows = cur.fetchall()
@@ -209,14 +241,14 @@ def get_filtered_items(filter_attributes: Item = None,
     results = []
     for row in rows:
         item = Item(
-            item_id=row[1].strip(),
-            product_name=row[3].strip(),
-            brand=row[4].strip(),
-            category=row[6].strip(),
-            manufact=row[7].strip(),
-            current_price=float(row[8]),
-            start_year=row[2].year,
-            num_owned=row[9]
+            item_id=row[1].strip() if row[1] else None,
+            product_name=row[3].strip() if row[3] else None,
+            brand=row[4].strip() if row[4] else None,
+            category=row[6].strip() if row[6] else None,
+            manufact=row[7].strip() if row[7] else None,
+            current_price=float(row[8]) if row[8] is not None else -1.0,
+            start_year=row[2].year if row[2] else -1,
+            num_owned=row[9] if row[9] is not None else -1
         )
         results.append(item)
 
@@ -244,24 +276,44 @@ def get_filtered_customers(filter_attributes: Customer = None, use_patterns: boo
     WHERE 1=1
     """
     params = []
+    op = "LIKE" if use_patterns else "="
 
-    if filter_attributes and filter_attributes.customer_id:
-        query += " AND c.c_customer_id = ?"
-        params.append(filter_attributes.customer_id)
+    if filter_attributes:
+        if filter_attributes.customer_id:
+            query += f" AND c.c_customer_id {op} ?"
+            params.append(filter_attributes.customer_id)
+        if filter_attributes.name:
+            query += f" AND CONCAT(TRIM(c.c_first_name), ' ', TRIM(c.c_last_name)) {op} ?"
+            params.append(filter_attributes.name)
+        if filter_attributes.email:
+            query += f" AND c.c_email_address {op} ?"
+            params.append(filter_attributes.email)
+        if filter_attributes.address:
+            query += f" AND CONCAT(TRIM(ca.ca_street_number), ' ', TRIM(ca.ca_street_name), ', ', TRIM(ca.ca_city), ', ', TRIM(ca.ca_state), ' ', TRIM(ca.ca_zip)) {op} ?"
+            params.append(filter_attributes.address)
 
     cur.execute(query, params)
     rows = cur.fetchall()
 
     results = []
     for row in rows:
-        name = f"{row[1].strip()} {row[2].strip()}".strip()
-        address = f"{row[4].strip()} {row[5].strip()}, {row[6].strip()}, {row[7].strip()} {row[8].strip()}"
+        first_name = row[1].strip() if row[1] else ""
+        last_name = row[2].strip() if row[2] else ""
+        name = f"{first_name} {last_name}".strip()
+        
+        street_num = row[4].strip() if row[4] else ""
+        street_name = row[5].strip() if row[5] else ""
+        city = row[6].strip() if row[6] else ""
+        state = row[7].strip() if row[7] else ""
+        zip_code = row[8].strip() if row[8] else ""
+        
+        address = f"{street_num} {street_name}, {city}, {state} {zip_code}"
 
         results.append(Customer(
-            customer_id=row[0].strip(),
+            customer_id=row[0].strip() if row[0] else None,
             name=name,
             address=address,
-            email=row[3].strip()
+            email=row[3].strip() if row[3] else None
         ))
 
     return results
