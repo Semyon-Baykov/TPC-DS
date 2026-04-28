@@ -416,16 +416,16 @@ def get_filtered_rentals(filter_attributes: Rental = None,
             query += " AND due_date = ?"
             params.append(filter_attributes.due_date)
 
-    if min_rental_date:
+    if min_rental_date and min_rental_date.strip():
         query += " AND rental_date >= ?"
         params.append(min_rental_date)
-    if max_rental_date:
+    if max_rental_date and max_rental_date.strip():
         query += " AND rental_date <= ?"
         params.append(max_rental_date)
-    if min_due_date:
+    if min_due_date and min_due_date.strip():
         query += " AND due_date >= ?"
         params.append(min_due_date)
-    if max_due_date:
+    if max_due_date and max_due_date.strip():
         query += " AND due_date <= ?"
         params.append(max_due_date)
 
@@ -474,22 +474,22 @@ def get_filtered_rental_histories(filter_attributes: RentalHistory = None,
             query += " AND return_date = ?"
             params.append(filter_attributes.return_date)
 
-    if min_rental_date:
+    if min_rental_date and min_rental_date.strip():
         query += " AND rental_date >= ?"
         params.append(min_rental_date)
-    if max_rental_date:
+    if max_rental_date and max_rental_date.strip():
         query += " AND rental_date <= ?"
         params.append(max_rental_date)
-    if min_due_date:
+    if min_due_date and min_due_date.strip():
         query += " AND due_date >= ?"
         params.append(min_due_date)
-    if max_due_date:
+    if max_due_date and max_due_date.strip():
         query += " AND due_date <= ?"
         params.append(max_due_date)
-    if min_return_date:
+    if min_return_date and min_return_date.strip():
         query += " AND return_date >= ?"
         params.append(min_return_date)
-    if max_return_date:
+    if max_return_date and max_return_date.strip():
         query += " AND return_date <= ?"
         params.append(max_return_date)
 
