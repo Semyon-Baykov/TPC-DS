@@ -8,10 +8,9 @@ from models.Customer import Customer
 from datetime import date, timedelta
 
 
+# Create connection on open
 conn = connect(user=DB_CONFIG["username"], password=DB_CONFIG["password"], host=DB_CONFIG["host"],
                database=DB_CONFIG["database"], port=DB_CONFIG["port"])
-
-
 cur = conn.cursor()
 
 
@@ -23,7 +22,6 @@ def add_item(new_item: Item = None):
     # generate new item sk
     cur.execute("SELECT COALESCE(MAX(i_item_sk), 0) + 1 FROM item")
     new_item_sk = cur.fetchone()[0]
-
     rec_start_date = f"{new_item.start_year}-01-01"
 
     cur.execute(
@@ -63,7 +61,6 @@ def add_customer(new_customer: Customer = None):
         new_customer and its attributes will never be None.
     """
     # split full name into first and last name
-
     name_parts = new_customer.name.split(" ", 1)
     first_name = name_parts[0]
     last_name = name_parts[1] if len(name_parts) > 1 else ""
@@ -71,7 +68,6 @@ def add_customer(new_customer: Customer = None):
     # parse address string
     # format: "123 Main St, Gainesville, FL 32601"
     address_parts = new_customer.address.split(",")
-
     street_part = address_parts[0].strip()
     city = address_parts[1].strip()
     state_zip = address_parts[2].strip()
@@ -89,6 +85,7 @@ def add_customer(new_customer: Customer = None):
     # generate new address surrogate key
     cur.execute("SELECT COALESCE(MAX(ca_address_sk), 0) + 1 FROM customer_address")
     new_address_sk = cur.fetchone()[0]
+
 
     cur.execute(
         """
@@ -147,9 +144,7 @@ def edit_customer(original_customer_id: str = None, new_customer: Customer = Non
     # Get current customer and address info
     cur.execute("SELECT c_current_addr_sk, c_first_name, c_last_name, c_email_address FROM customer WHERE c_customer_id = ?", (original_customer_id,))
     row = cur.fetchone()
-    if not row:
-        return
-    
+    if not row: return
     addr_sk, first_name, last_name, email = row
 
     # Only split name if provided
@@ -271,6 +266,7 @@ def get_filtered_items(filter_attributes: Item = None,
     params = []
     op = "LIKE" if use_patterns else "="
 
+    # We just do if statements based on menu choice
     if filter_attributes:
         if filter_attributes.item_id:
             query += f" AND i_item_id {op} ?"
@@ -350,6 +346,7 @@ def get_filtered_customers(filter_attributes: Customer = None, use_patterns: boo
     params = []
     op = "LIKE" if use_patterns else "="
 
+    # Again, just choose based on menu choice
     if filter_attributes:
         if filter_attributes.customer_id:
             query += f" AND c.c_customer_id {op} ?"
@@ -366,7 +363,6 @@ def get_filtered_customers(filter_attributes: Customer = None, use_patterns: boo
 
     cur.execute(query, params)
     rows = cur.fetchall()
-
     results = []
     for row in rows:
         first_name = row[1].strip() if row[1] else ""
